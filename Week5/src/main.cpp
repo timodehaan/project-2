@@ -31,6 +31,8 @@ const int mtrP3 = D8;
 const int trigPin[3] = {D5, D6, D7};
 const int echoPin[3] = {D6, D7, D5};
 
+const int irPin[2] = {D0, D1};
+
 /* const int trigPin0 = D5; //D0
 const int echoPin0 = D6; //D1
 const int trigPin1 = D6; //D0
@@ -62,8 +64,10 @@ int getWifiCommand();
 // get the distance form the sensor
 // parameter is about which sensor you want to read
 float distance(int s);
-// set the motor in the right driving 
+// set the motor in the right driving
 void runMotor(int command);
+
+bool readIR(int s);
 
 void setup()
 {
@@ -113,6 +117,25 @@ void loop()
     runMotor(TURNRIGHT);
     runMotor(FORWARD);
   }
+  //
+  if (readIR(0))
+  {
+    Serial.println("left");
+    runMotor(BACKWARD);
+    delay(500); // 0.5 seconds extra
+    runMotor(TURNRIGHT);
+    runMotor(FORWARD);
+  }
+  if (readIR(1))
+  {
+    Serial.println("right");
+    runMotor(BACKWARD);
+    delay(500); // 0.5 seconds extra
+    runMotor(TURNLEFT);
+    runMotor(FORWARD);
+  }
+
+  //
   delay(5); // keep calm
 }
 
@@ -298,4 +321,18 @@ void runMotor(int command)
       break;
     }
   }
+}
+
+bool readIR(int s)
+{
+  for (int i = 0; i < 5; i++)
+  {
+    if (digitalRead(irPin[s]))
+    {
+      delay(1);
+      return true;
+    }
+  }
+  return false;
+  //return digitalRead(irPin[s]);
 }
