@@ -1,48 +1,48 @@
-#include <Arduino.h>
 
-/*********
-  Rui Santos
-  Complete project details at http://randomnerdtutorials.com  
-  https://randomnerdtutorials.com/esp8266-web-server-with-arduino-ide/ 
-*********/
-/* 
+/* notes for this code
  * to add in week 6:
  * reed
  * ultrasoon forward
  */
+
 // Load Wi-Fi library
+#include <Arduino.h>
 #include <ESP8266WiFi.h>
 
-// Replace with your network credentials
+/*** wifi varibles ***/
 //const char *ssid = "Tesla IoT";
 //const char *password = "fsL6HgjN";
 const char *ssid = "WIFI_TI";
 const char *password = "123456789";
-
 // Set web server port number to 80
 WiFiServer server(80);
-
 // Variable to store the HTTP request
 String header;
-
-// Assign output variables to GPIO pins
-const int mtrP0 = D2;
-const int mtrP1 = D3;
-const int mtrP2 = D4;
-const int mtrP3 = D8;
-
-// defines pins numbers for the distance sensors
-const int trigPin[3] = {D5, D6, D7};
-const int echoPin[3] = {D7, D5, D6};
-
-const int irPin[2] = {D0, D1};
-
 // Current time
 unsigned long currentTime = millis();
 // Previous time
 unsigned long previousTime = 0;
 // Define timeout time in milliseconds (example: 2000ms = 2s)
 const long timeoutTime = 2000;
+
+/*** pin declarations ***/
+// the motor pins
+const int mtrP0 = D2;
+const int mtrP1 = D3;
+const int mtrP2 = D4;
+const int mtrP3 = D8;
+// the distance sensor pins
+const int trigPin[3] = {D5, D6, D7};
+const int echoPin[3] = {D7, D5, D6};
+// the infrared sensor pins
+const int irPin[2] = {D0, D1};
+// the reed sensor pin
+const int reedPin = A0;
+
+/*** global varibles ***/
+// autoMode means that he will drive autonomous
+// by default turned off, button 8 on the remote(wifi)
+bool autoMode = false;
 
 // give the commands recieved via wifi numbers
 #define ERROR 0
@@ -55,16 +55,19 @@ const long timeoutTime = 2000;
 #define TURNRIGHT 7
 #define TURNHALF 8
 
-// define all the functions
+/*** fuction declarations ***/
 // this function will return the message that he recieved over the wifi
 int getWifiCommand();
 // get the distance form the sensor
 // parameter is about which sensor you want to read
+// returns 0.00 if not readable
 float distance(int s);
-// set the motor in the right driving
+// set the motor in the right driving gear
 void runMotor(int command);
-
+// returns true if the ground is black
 bool readIR(int s);
+// let the bot ride itself
+void autonomous();
 
 void setup()
 {
@@ -99,51 +102,85 @@ void setup()
 
 void loop()
 {
-  //Serial.printf("The distance to the ground is: %f\n", distance(0));
+  // check for new wifi messages
   int motorCommand = getWifiCommand();
-  runMotor(motorCommand);
-
-  //Show all data:
+  if (autoMode)
+  {
+    // drive autonomous
+    autonomous();
+  }
+  else
+  {
+    // drive manual
+    runMotor(motorCommand);
+    //Show all data:
   for (int i = 0; i < 3; i++)
   {
-    Serial.print("Ultrasoon: ");
+    Serial.print(" Ultrasoon: ");
     Serial.print(distance(i));
-    delay(100);
+    delay(20);
   }
-  Serial.println();
-  //Serial.printf("\tIR0: %d, IR1 %d\n", readIR(0), readIR(1));
-  //clif detection
-  /* if (distance(0) - 4 > 5)
+  Serial.printf("\tIR0: %d, IR1 %d\n", readIR(0), readIR(1));
+  }
+  delay(5); // keep calm
+}
+
+// let the bot ride itself
+void autonomous()
+{
+  // clif detection
+  // clif height 5 cm, robot height 3 cm => 8
+  float clifHeight = distance(1);
+  if (clifHeight > 8)
   {
-    runMotor(BACKWARD);
-    while (distance(0) - 4 > 2)
+    // there is a cliff
+    Serial.println("I arrived at a cliff");
+  }
+  delay(20);
+
+  // object detection
+  // distance to an object set to 10
+  float disLeft = distance(2);
+  delay(20);
+  float disRight = distance(0);
+  if (disLeft < 10 || disRight < 10)
+  {
+    // object detected
+    Serial.print("there is an object on the ");
+    if (disLeft < disRight)
     {
-      delay(1); // wait
+      // object is on the left
+      Serial.println("left");
     }
-    delay(500); // 0.5 seconds extra
-    runMotor(TURNRIGHT);
-    runMotor(FORWARD);
-  } */
-  //
-  /* if (readIR(0))
-  {
-    Serial.println("left");
-    runMotor(BACKWARD);
-    delay(500); // 0.5 seconds extra
-    runMotor(TURNRIGHT);
-    runMotor(FORWARD);
+    else
+    {
+      // object is on the right
+      Serial.println("right");
+    }
   }
-  if (readIR(1))
+  // black detection
+  bool irLeft = readIR(0);
+  bool irRight = readIR(1);
+  if (irLeft && irRight)
   {
-    Serial.println("right");
-    runMotor(BACKWARD);
-    delay(500); // 0.5 seconds extra
-    runMotor(TURNLEFT);
-    runMotor(FORWARD);
-  } */
+    // both passed
+    Serial.println("passed the line straight");
+  }
+  else if (irLeft)
+  {
+    // left passed
+    Serial.println("passed the line left");
+
+  }
+  else if (irRight)
+  {
+    // right passed
+    Serial.println("passed the line right");
+  }
+
+  // casualty detection
 
   //
-  delay(5); // keep calm
 }
 
 int getWifiCommand()
@@ -204,6 +241,16 @@ int getWifiCommand()
             {
               command = TURNHALF;
             }
+            else if (header.indexOf("GET /action?type=8") >= 0)
+            {
+              // toggle autoMode
+              autoMode = !autoMode;
+              // make sure the bot stoped driving when switching to autoMode
+              if (autoMode)
+              {
+                runMotor(STOP);
+              }
+            }
             else
             {
               command = ERROR;
@@ -246,11 +293,10 @@ float distance(int s) // Sensor
   digitalWrite(trigPin[s], HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin[s], LOW);
-  // read the feedback
-  duration = pulseIn(echoPin[s], HIGH);
+  // read the feedback, max 50 miliseconds
+  duration = pulseIn(echoPin[s], HIGH, 50000);
   // calculate the distance form the time
   distance = (duration * 0.0343) / 2;
-  //Serial.println(distance);
   // return the distance
   return (distance);
 }
@@ -262,6 +308,7 @@ void runMotor(int command)
     //Serial.println(command);
     switch (command)
     {
+      // basic commands
     case FORWARD:
       // drive forward
       digitalWrite(mtrP0, HIGH);
@@ -299,29 +346,22 @@ void runMotor(int command)
     case ERROR:
       // do nothing
       break;
-
+      // advance commands (recursive)
     case TURNLEFT:
       // trun left
-      digitalWrite(mtrP0, LOW);
-      digitalWrite(mtrP1, HIGH);
-      digitalWrite(mtrP2, HIGH);
-      digitalWrite(mtrP3, LOW);
+      runMotor(LEFT);
       delay(750);
-      digitalWrite(mtrP1, LOW);
-      digitalWrite(mtrP2, LOW);
+      runMotor(STOP);
       break;
     case TURNRIGHT:
       // trun right
-      digitalWrite(mtrP0, HIGH);
-      digitalWrite(mtrP1, LOW);
-      digitalWrite(mtrP2, LOW);
-      digitalWrite(mtrP3, HIGH);
+      runMotor(RIGHT);
       delay(750);
-      digitalWrite(mtrP0, LOW);
-      digitalWrite(mtrP3, LOW);
+      runMotor(STOP);
       break;
     case TURNHALF:
-      //
+      runMotor(TURNRIGHT);
+      runMotor(TURNRIGHT);
       break;
 
     default:
@@ -329,7 +369,7 @@ void runMotor(int command)
     }
   }
 }
-
+// returns true if the ground is black
 bool readIR(int s)
 {
   // double check it cause of strange behaviour of the sensor
@@ -343,3 +383,5 @@ bool readIR(int s)
   }
   return false;
 }
+
+//
