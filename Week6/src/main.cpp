@@ -3,6 +3,8 @@
  * to add in week 6:
  * reed
  * ultrasoon forward
+ * 0 correction form the ultrasoon
+ * safemode?
  */
 
 // Load Wi-Fi library
@@ -38,6 +40,8 @@ const int echoPin[3] = {D7, D5, D6};
 const int irPin[2] = {D0, D1};
 // the reed sensor pin
 const int reedPin = A0;
+// the led
+// is not new, the led will turn on by turning on all the trigPin[s]
 
 /*** global varibles ***/
 // autoMode means that he will drive autonomous
@@ -66,6 +70,10 @@ float distance(int s);
 void runMotor(int command);
 // returns true if the ground is black
 bool readIR(int s);
+// ruturns true if there is a casualty found
+bool reed();
+// turn on/off the led with the parameter
+void led(bool state);
 // let the bot ride itself
 void autonomous();
 
@@ -82,6 +90,10 @@ void setup()
   digitalWrite(mtrP1, LOW);
   digitalWrite(mtrP2, LOW);
   digitalWrite(mtrP3, LOW);
+
+  pinMode(irPin[0], INPUT);
+  pinMode(irPin[1], INPUT);
+  pinMode(reedPin, INPUT);
 
   // Connect to Wi-Fi network with SSID and password
   Serial.print("Connecting to ");
@@ -114,13 +126,13 @@ void loop()
     // drive manual
     runMotor(motorCommand);
     //Show all data:
-  for (int i = 0; i < 3; i++)
-  {
-    Serial.print(" Ultrasoon: ");
-    Serial.print(distance(i));
-    delay(20);
-  }
-  Serial.printf("\tIR0: %d, IR1 %d\n", readIR(0), readIR(1));
+    for (int i = 0; i < 3; i++)
+    {
+      Serial.print(" Ultrasoon: ");
+      Serial.print(distance(i));
+      delay(20);
+    }
+    Serial.printf("\tIR0: %d, IR1 %d\t reed %d\n", readIR(0), readIR(1), reed());
   }
   delay(5); // keep calm
 }
@@ -128,57 +140,69 @@ void loop()
 // let the bot ride itself
 void autonomous()
 {
-  // clif detection
-  // clif height 5 cm, robot height 3 cm => 8
-  float clifHeight = distance(1);
-  if (clifHeight > 8)
-  {
-    // there is a cliff
-    Serial.println("I arrived at a cliff");
-  }
-  delay(20);
-
-  // object detection
-  // distance to an object set to 10
-  float disLeft = distance(2);
-  delay(20);
-  float disRight = distance(0);
-  if (disLeft < 10 || disRight < 10)
-  {
-    // object detected
-    Serial.print("there is an object on the ");
-    if (disLeft < disRight)
-    {
-      // object is on the left
-      Serial.println("left");
-    }
-    else
-    {
-      // object is on the right
-      Serial.println("right");
-    }
-  }
-  // black detection
-  bool irLeft = readIR(0);
-  bool irRight = readIR(1);
-  if (irLeft && irRight)
-  {
-    // both passed
-    Serial.println("passed the line straight");
-  }
-  else if (irLeft)
-  {
-    // left passed
-    Serial.println("passed the line left");
-
-  }
-  else if (irRight)
-  {
-    // right passed
-    Serial.println("passed the line right");
-  }
-
+  int speed = 20;
+  int disObject = 10; // the distance toward a object
   // casualty detection
+  if (reed())
+  {
+    Serial.println("casualty detected");
+    led(true);
+  }
+  else
+  {
+    led(false);
+    // gather all the sensor data
+    float clifHeight = distance(1);
+    delay(speed);
+    float disLeft = distance(2);
+    delay(speed);
+    float disRight = distance(0);
+    bool irLeft = readIR(0);
+    bool irRight = readIR(1);
+
+    // clif detection
+    // clif height 5 cm, robot height 3 cm => 8
+    if (clifHeight > 8)
+    {
+      // there is a cliff
+      Serial.println("I arrived at a cliff");
+    }
+
+    // object detection
+    // distance to an object set to (disObject)
+    if (disLeft < disObject || disRight < disObject)
+    {
+      // object detected
+      Serial.print("there is an object on the ");
+      if (disLeft < disRight)
+      {
+        // object is on the left
+        Serial.println("left");
+      }
+      else
+      {
+        // object is on the right
+        Serial.println("right");
+      }
+    }
+
+    // black detection
+    if (irLeft && irRight)
+    {
+      // both passed
+      Serial.println("passed the line straight");
+    }
+    else if (irLeft)
+    {
+      // left passed
+      Serial.println("passed the line left");
+    }
+    else if (irRight)
+    {
+      // right passed
+      Serial.println("passed the line right");
+    }
+  }
 
   //
 }
@@ -240,6 +264,14 @@ int getWifiCommand()
             else if (header.indexOf("GET /action?type=3") >= 0)
             {
               command = TURNHALF;
+            }
+            else if (header.indexOf("GET /action?type=6") >= 0)
+            {
+              led(true);
+            }
+            else if (header.indexOf("GET /action?type=7") >= 0)
+            {
+              led(false);
             }
             else if (header.indexOf("GET /action?type=8") >= 0)
             {
@@ -384,4 +416,24 @@ bool readIR(int s)
   return false;
 }
 
-//
+// ruturns true if there is a casualty found
+bool reed()
+{
+  if (analogRead(reedPin) > 500)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+void led(bool state)
+{
+  for (int i = 0; i < 3; i++)
+  {
+    pinMode(trigPin[i], OUTPUT);
+    digitalWrite(trigPin[i], state);
+  }
+}
