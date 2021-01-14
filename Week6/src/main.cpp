@@ -1,10 +1,13 @@
 
 /* notes for this code
  * to add in week 6:
- * reed
- * ultrasoon forward
  * 0 correction form the ultrasoon
- * safemode?
+ * safemode/testmode?
+ * set up an seconds for 90 degree turn
+ * user manual:
+ * button 8 to switch to atonomous mode
+ * button 1 to turn to the left
+ * button 2 to turn to the right
  */
 
 // Load Wi-Fi library
@@ -57,7 +60,14 @@ bool autoMode = false;
 #define STOP 5
 #define TURNLEFT 6
 #define TURNRIGHT 7
-#define TURNHALF 8
+#define TURN45LEFT 8
+#define TURN45RIGHT 9
+#define TURNHALFLEFT 10
+#define TURNHALFRIGHT 11
+// for the object handeling
+#define NOPASS 0
+#define LEFTPASS 1
+#define RIGHTPASS 2
 
 /*** fuction declarations ***/
 // this function will return the message that he recieved over the wifi
@@ -136,26 +146,47 @@ void loop()
   }
   delay(5); // keep calm
 }
-
+/* 
+ * The flow chart of atonomous
+ * fisrt look id there are no casualtys
+ * - if casualty found quit autonomous mode
+ * - else look if we can drive forward
+ *  - avoid objects, try to pass it
+ *  - turn at black ground, [left/right]?
+ *  - turn at a cliff, [left/right]?
+ *  + do we know if were are heading back or not?
+ * 
+ */
 // let the bot ride itself
 void autonomous()
 {
-  int speed = 20;
+  static int derection = FORWARD; // remmeber in wich derection we are traveliing
+  static int passingObject = 0;
+  static unsigned long passTime = 0; // time to drive to the side
+  static unsigned long currTime;
+  int speed = 20;     // 20 works, the lower the faster
   int disObject = 10; // the distance toward a object
-  // casualty detection
+  // if there is a casualty
+  // stop atonomous driving and turn on the led
   if (reed())
   {
     Serial.println("casualty detected");
     led(true);
+    runMotor(STOP);
+    autoMode = false;
+    // reset for next time
+    derection = FORWARD;
   }
+  // if there is no casuaty
+  // then try to drive forward
   else
   {
-    led(false);
+    led(false); // turn off the led
     // gather all the sensor data
     float clifHeight = distance(1);
-    delay(speed);
+    delay(speed); // make sensor accurate
     float disLeft = distance(2);
-    delay(speed);
+    delay(speed); // make sensor accurate
     float disRight = distance(0);
     bool irLeft = readIR(0);
     bool irRight = readIR(1);
@@ -165,7 +196,13 @@ void autonomous()
     if (clifHeight > 8)
     {
       // there is a cliff
+      // drive back
+      // turn left
       Serial.println("I arrived at a cliff");
+      runMotor(BACKWARD);
+      delay(1000);
+      runMotor(TURNLEFT);
+      runMotor(derection);
     }
 
     // object detection
@@ -177,12 +214,43 @@ void autonomous()
       if (disLeft < disRight)
       {
         // object is on the left
+        // turn slitly to the right
+        // turn back to the left
+        // drive forward
         Serial.println("left");
+        if (passingObject == LEFTPASS && currTime < passTime + millis())
+        {
+          // we are at the side of the object
+          runMotor(TURN45RIGHT);
+          runMotor(derection);
+        }
+        else if (passingObject == NOPASS)
+        {
+          // start to pass the obejct
+          // start the timer
+          passingObject = LEFTPASS;
+          runMotor(TURN45LEFT);
+          passTime = millis(); 
+        }
       }
       else
       {
         // object is on the right
         Serial.println("right");
+        if (passingObject == RIGHTPASS && currTime < passTime + millis())
+        {
+          // we are at the side of the object
+          runMotor(TURN45LEFT);
+          runMotor(derection);
+        }
+        else if (passingObject == NOPASS)
+        {
+          // start to pass the obejct
+          // start the timer
+          passingObject = RIGHTPASS;
+          runMotor(TURN45RIGHT);
+          passTime = millis(); 
+        }
       }
     }
 
@@ -190,17 +258,35 @@ void autonomous()
     if (irLeft && irRight)
     {
       // both passed
+      // drive back
+      // turn 90 to the left
       Serial.println("passed the line straight");
+      runMotor(BACKWARD);
+      delay(1000);
+      runMotor(TURNRIGHT);
+      runMotor(derection);
     }
     else if (irLeft)
     {
       // left passed
+      // drive back
+      // turn 45 to the right
       Serial.println("passed the line left");
+      runMotor(BACKWARD);
+      delay(750);
+      runMotor(TURN45RIGHT);
+      runMotor(derection);
     }
     else if (irRight)
     {
       // right passed
+      // drive back
+      // turn 45 to the left
       Serial.println("passed the line right");
+      runMotor(BACKWARD);
+      delay(750);
+      runMotor(TURN45LEFT);
+      runMotor(derection);
     }
   }
 
@@ -263,7 +349,7 @@ int getWifiCommand()
             }
             else if (header.indexOf("GET /action?type=3") >= 0)
             {
-              command = TURNHALF;
+              command = TURNHALFLEFT;
             }
             else if (header.indexOf("GET /action?type=6") >= 0)
             {
@@ -335,6 +421,7 @@ float distance(int s) // Sensor
 
 void runMotor(int command)
 {
+  static int degree90 = 750; // not sure if this is the right time
   if (command != 0)
   {
     //Serial.println(command);
@@ -382,21 +469,34 @@ void runMotor(int command)
     case TURNLEFT:
       // trun left
       runMotor(LEFT);
-      delay(750);
+      delay(degree90);
       runMotor(STOP);
       break;
     case TURNRIGHT:
       // trun right
       runMotor(RIGHT);
-      delay(750);
+      delay(degree90);
       runMotor(STOP);
       break;
-    case TURNHALF:
-      runMotor(TURNRIGHT);
-      runMotor(TURNRIGHT);
+    case TURN45LEFT:
+      // trun left
+      runMotor(LEFT);
+      delay(degree90 / 2);
+      runMotor(STOP);
       break;
-
-    default:
+    case TURN45RIGHT:
+      // trun right
+      runMotor(RIGHT);
+      delay(degree90 / 2);
+      runMotor(STOP);
+      break;
+    case TURNHALFLEFT:
+      runMotor(TURNLEFT);
+      runMotor(TURNLEFT);
+      break;
+    case TURNHALFRIGHT:
+      runMotor(TURNRIGHT);
+      runMotor(TURNRIGHT);
       break;
     }
   }
