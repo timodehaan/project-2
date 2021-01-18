@@ -9,7 +9,7 @@
  * button 1 to turn to the left
  * button 2 to turn to the right
  */
-
+// hallo
 // Load Wi-Fi library
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -162,7 +162,7 @@ void autonomous()
 {
   static int derection = FORWARD; // remmeber in wich derection we are traveliing
   static int passingObject = 0;
-  static unsigned long passTime = 0; // time to drive to the side
+  static unsigned long passTime = 1000; // time to drive to the side
   static unsigned long currTime;
   int speed = 20;     // 20 works, the lower the faster
   int disObject = 10; // the distance toward a object
@@ -174,6 +174,7 @@ void autonomous()
     led(true);
     runMotor(STOP);
     autoMode = false;
+    delay(5000);
     // reset for next time
     derection = FORWARD;
   }
@@ -182,6 +183,7 @@ void autonomous()
   else
   {
     led(false); // turn off the led
+    runMotor(FORWARD);
     // gather all the sensor data
     float clifHeight = distance(1);
     delay(speed); // make sensor accurate
@@ -209,47 +211,53 @@ void autonomous()
     // distance to an object set to (disObject)
     if (disLeft < disObject || disRight < disObject)
     {
-      // object detected
-      Serial.print("there is an object on the ");
-      if (disLeft < disRight)
+      // error filtering
+      if (disLeft > 1 && disRight > 1)
       {
-        // object is on the left
-        // turn slitly to the right
-        // turn back to the left
-        // drive forward
-        Serial.println("left");
-        if (passingObject == LEFTPASS && currTime < passTime + millis())
+        // object detected
+        Serial.print("there is an object on the ");
+        if (disLeft < disRight)
         {
-          // we are at the side of the object
-          runMotor(TURN45RIGHT);
-          runMotor(derection);
+          // object is on the left
+          // turn slitly to the right
+          // turn back to the left
+          // drive forward
+          Serial.println("left");
+          if (passingObject == LEFTPASS && currTime < passTime + millis())
+          {
+            // we are at the side of the object
+            runMotor(TURN45RIGHT);
+            runMotor(derection);
+            passingObject = NOPASS;
+          }
+          else if (passingObject == NOPASS)
+          {
+            // start to pass the obejct
+            // start the timer
+            passingObject = LEFTPASS;
+            runMotor(TURN45LEFT);
+            passTime = millis();
+          }
         }
-        else if (passingObject == NOPASS)
+        else
         {
-          // start to pass the obejct
-          // start the timer
-          passingObject = LEFTPASS;
-          runMotor(TURN45LEFT);
-          passTime = millis(); 
-        }
-      }
-      else
-      {
-        // object is on the right
-        Serial.println("right");
-        if (passingObject == RIGHTPASS && currTime < passTime + millis())
-        {
-          // we are at the side of the object
-          runMotor(TURN45LEFT);
-          runMotor(derection);
-        }
-        else if (passingObject == NOPASS)
-        {
-          // start to pass the obejct
-          // start the timer
-          passingObject = RIGHTPASS;
-          runMotor(TURN45RIGHT);
-          passTime = millis(); 
+          // object is on the right
+          Serial.println("right");
+          if (passingObject == RIGHTPASS && currTime < passTime + millis())
+          {
+            // we are at the side of the object
+            runMotor(TURN45LEFT);
+            runMotor(derection);
+            passingObject = NOPASS;
+          }
+          else if (passingObject == NOPASS)
+          {
+            // start to pass the obejct
+            // start the timer
+            passingObject = RIGHTPASS;
+            runMotor(TURN45RIGHT);
+            passTime = millis();
+          }
         }
       }
     }
