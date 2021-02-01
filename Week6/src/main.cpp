@@ -1,13 +1,6 @@
 
 /* notes for this code
- * to add in week 6:
- * 0 correction form the ultrasoon
- * safemode/testmode?
- * set up an seconds for 90 degree turn
- * user manual:
- * button 8 to switch to atonomous mode
- * button 1 to turn to the left
- * button 2 to turn to the right
+ * version 9
  */
 // hallo
 // Load Wi-Fi library
@@ -165,7 +158,7 @@ void autonomous()
   static unsigned long passTime = 1000; // time to drive to the side
   static unsigned long currTime;
   int speed = 20;     // 20 works, the lower the faster
-  int disObject = 10; // the distance toward a object
+  int disObject = 15; // the distance toward a object
   // if there is a casualty
   // stop atonomous driving and turn on the led
   if (reed())
@@ -206,10 +199,44 @@ void autonomous()
       runMotor(TURNLEFT);
       runMotor(derection);
     }
-
+    // black detection
+    if (irLeft && irRight)
+    {
+      // both passed
+      // drive back
+      // turn 90 to the left
+      Serial.println("passed the line straight");
+      runMotor(BACKWARD);
+      delay(1000);
+      runMotor(TURNRIGHT);
+      runMotor(derection);
+    }
+    else if (irLeft)
+    {
+      // left passed
+      // drive back
+      // turn 45 to the right
+      Serial.println("passed the line left");
+      runMotor(BACKWARD);
+      delay(750);
+      runMotor(TURN45RIGHT);
+      runMotor(derection);
+    }
+    else if (irRight)
+    {
+      // right passed
+      // drive back
+      // turn 45 to the left
+      Serial.println("passed the line right");
+      runMotor(BACKWARD);
+      delay(750);
+      runMotor(TURN45LEFT);
+      runMotor(derection);
+    }
     // object detection
-    // distance to an object set to (disObject)
-    if (disLeft < disObject || disRight < disObject)
+    // filter unuseable sensor data
+    // distance to an object set to (disObject) or we are passing an object
+    if (disLeft < disObject || disRight < disObject || passingObject != NOPASS)
     {
       // error filtering
       if (disLeft > 1 && disRight > 1)
@@ -261,45 +288,9 @@ void autonomous()
         }
       }
     }
-
-    // black detection
-    if (irLeft && irRight)
-    {
-      // both passed
-      // drive back
-      // turn 90 to the left
-      Serial.println("passed the line straight");
-      runMotor(BACKWARD);
-      delay(1000);
-      runMotor(TURNRIGHT);
-      runMotor(derection);
-    }
-    else if (irLeft)
-    {
-      // left passed
-      // drive back
-      // turn 45 to the right
-      Serial.println("passed the line left");
-      runMotor(BACKWARD);
-      delay(750);
-      runMotor(TURN45RIGHT);
-      runMotor(derection);
-    }
-    else if (irRight)
-    {
-      // right passed
-      // drive back
-      // turn 45 to the left
-      Serial.println("passed the line right");
-      runMotor(BACKWARD);
-      delay(750);
-      runMotor(TURN45LEFT);
-      runMotor(derection);
-    }
   }
-
-  //
 }
+
 
 int getWifiCommand()
 {
